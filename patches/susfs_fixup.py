@@ -238,4 +238,23 @@ try:
 except FileNotFoundError:
     pass
 
+
+# 7) extension/susfs.c 末尾补 susfs_extra_works（新版 SUSFS 的后台任务）
+p = 'drivers/kernelsu/extension/susfs.c'
+try:
+    s = rd(p)
+    if 'susfs_extra_works' not in s:
+        s += r"""
+
+#ifdef CONFIG_KSU_SUSFS
+/* 5.4: 新版 SUSFS 的额外工作任务，5.4 内核侧没有，这里提供空任务（必须初始化） */
+#include <linux/workqueue.h>
+static void susfs_extra_work_noop(struct work_struct *work) { }
+DECLARE_WORK(susfs_extra_works, susfs_extra_work_noop);
+#endif
+"""
+        wr(p, s); ok.append('susfs_extra_works')
+except FileNotFoundError:
+    pass
+
 print('[susfs-fixup] 完成:', ', '.join(ok))
