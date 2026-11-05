@@ -73,12 +73,13 @@ jobs:
         run: |
           cd kernel/drivers/kernelsu
           python3 "$GITHUB_WORKSPACE/patches/ksu_diag.py"
-          python3 "$GITHUB_WORKSPACE/patches/direct_hooks.py"
       - name: features
         run: |
           cd kernel
           python3 "$GITHUB_WORKSPACE/patches/features54.py" "$GITHUB_WORKSPACE/patches"
           python3 "$GITHUB_WORKSPACE/patches/stealth54.py"
+          cd drivers/kernelsu
+          python3 "$GITHUB_WORKSPACE/patches/direct_hooks.py"
       - name: susfs
         run: |
           cd kernel
