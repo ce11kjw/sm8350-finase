@@ -133,4 +133,49 @@ try:
 except FileNotFoundError:
     print('[fixup] cmdline.c 不存在，跳过')
 
+
+# 5) include/linux/susfs_def.h : 补齐 FinaSU 期望的 13 个新一代接口
+p = 'include/linux/susfs_def.h'
+s = rd(p)
+if 'SUSFS_COMPAT54_H' not in s:
+    s += r"""
+/* ===== 5.4 兼容层：补齐 FinaSU 期望但 kernel-5.4 SUSFS 未提供的接口 ===== */
+#ifndef SUSFS_COMPAT54_H
+#define SUSFS_COMPAT54_H
+#include <linux/sched.h>
+
+#ifndef TASK_STRUCT_NO_SU_PROC
+#define TASK_STRUCT_NO_SU_PROC BIT(25)
+#endif
+
+/* 真实实现：per-task 标记 */
+static inline void susfs_set_current_proc_no_su(void)
+{
+	current->susfs_task_state |= TASK_STRUCT_NO_SU_PROC;
+}
+static inline bool susfs_is_current_proc_no_su(void)
+{
+	return !!(current->susfs_task_state & TASK_STRUCT_NO_SU_PROC);
+}
+static inline void susfs_set_current_proc_umounted(void)
+{
+	current->susfs_task_state |= TASK_STRUCT_NON_ROOT_USER_APP_PROC;
+}
+static inline void susfs_set_current_proc_umounted_for_zygote_next(void) { }
+
+/* 以下功能在 kernel-5.4 的 SUSFS 中不存在，空实现 */
+static inline void susfs_add_sus_map(void *arg) { }
+static inline void susfs_add_sus_path_loop(void *arg) { }
+static inline void susfs_enable_log(void *arg) { }
+static inline void susfs_get_enabled_features(void *arg) { }
+static inline void susfs_set_avc_log_spoofing(void *arg) { }
+static inline void susfs_set_hide_sus_mnts_for_non_su_procs(void *arg) { }
+static inline void susfs_show_variant(void *arg) { }
+static inline void susfs_show_version(void *arg) { }
+static inline void susfs_start_sdcard_monitor_fn(void) { }
+#endif
+"""
+    wr(p, s)
+    ok.append('susfs_def.h 兼容层(13项)')
+
 print('[susfs-fixup] 完成:', ', '.join(ok))
