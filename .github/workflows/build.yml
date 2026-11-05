@@ -71,6 +71,10 @@ jobs:
           cd kernel/drivers/kernelsu
           python3 "$GITHUB_WORKSPACE/patches/ksu_diag.py"
           python3 "$GITHUB_WORKSPACE/patches/direct_hooks.py"
+      - name: features
+        run: |
+          cd kernel
+          python3 "$GITHUB_WORKSPACE/patches/features54.py" "$GITHUB_WORKSPACE/patches"
       - name: susfs
         run: |
           cd kernel
@@ -87,7 +91,7 @@ jobs:
         run: |
           cd kernel
           make O=out ARCH=arm64 CC=clang-14 LD=ld.lld-14 AR=llvm-ar-14 NM=llvm-nm-14 OBJCOPY=llvm-objcopy-14 OBJDUMP=llvm-objdump-14 STRIP=llvm-strip-14 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 TARGET_PRODUCT=star vendor/lahaina-qgki_defconfig vendor/debugfs.config vendor/xiaomi_QGKI.config
-          for c in KSU KPROBES KALLSYMS_ALL EXT4_FS HEADERS_INSTALL KSU_SUSFS THREAD_INFO_IN_TASK KSU_SUSFS_SUS_PATH KSU_SUSFS_SUS_MOUNT KSU_SUSFS_SUS_KSTAT KSU_SUSFS_SPOOF_UNAME KSU_SUSFS_ENABLE_LOG KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS KSU_SUSFS_OPEN_REDIRECT KSU_SUSFS_SUS_MAP KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG; do ./scripts/config --file out/.config --enable $c; done
+          for c in KSU KPROBES KALLSYMS_ALL EXT4_FS HEADERS_INSTALL KSU_SUSFS THREAD_INFO_IN_TASK KSU_SUSFS_SUS_PATH KSU_SUSFS_SUS_MOUNT KSU_SUSFS_SUS_KSTAT KSU_SUSFS_SPOOF_UNAME KSU_SUSFS_ENABLE_LOG KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS KSU_SUSFS_OPEN_REDIRECT KSU_SUSFS_SUS_MAP KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG NOMOUNT; do ./scripts/config --file out/.config --enable $c; done
                     ./scripts/config --file out/.config --disable KSU_HOOK_SUSFS_INLINE
           ./scripts/config --file out/.config --disable WERROR
           make O=out ARCH=arm64 CC=clang-14 LD=ld.lld-14 AR=llvm-ar-14 NM=llvm-nm-14 OBJCOPY=llvm-objcopy-14 OBJDUMP=llvm-objdump-14 STRIP=llvm-strip-14 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 TARGET_PRODUCT=star olddefconfig
@@ -102,6 +106,15 @@ jobs:
           rc=$?
           echo "ksu quick rc=$rc"
           if [ $rc -ne 0 ]; then grep -E 'error:' /tmp/ksu.log | head -20; tail -15 /tmp/ksu.log; fi
+          exit $rc
+      - name: nomount quick check
+        run: |
+          cd kernel
+          set +e
+          make O=out ARCH=arm64 CC=clang-14 LD=ld.lld-14 AR=llvm-ar-14 NM=llvm-nm-14 OBJCOPY=llvm-objcopy-14 OBJDUMP=llvm-objdump-14 STRIP=llvm-strip-14 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- TARGET_PRODUCT=star fs/nomount/ > /tmp/nm.log 2>&1
+          rc=$?
+          echo "nomount quick rc=$rc"
+          if [ $rc -ne 0 ]; then grep -E 'error:' /tmp/nm.log | head -20; tail -20 /tmp/nm.log; fi
           exit $rc
       - name: build
         run: |
