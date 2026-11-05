@@ -35,11 +35,18 @@ jobs:
           git clone --depth 1 -b ${{ inputs.ksu_ref }} https://github.com/LyraVoid/FinaSU.git /tmp/finasu
           cd kernel
           bash /tmp/finasu/kernel/setup.sh --dir /tmp/finasu ${{ inputs.ksu_ref }}
-          echo "--- 5.4 兼容：补 linux/pgtable.h ---"
+          echo "=== 5.4 (kernel 5.4) 兼容补丁 ==="
           if [ ! -f include/linux/pgtable.h ]; then
             echo '#include <asm/pgtable.h>' > include/linux/pgtable.h
-            echo "created include/linux/pgtable.h shim"
+            echo "[+] linux/pgtable.h shim created"
           fi
+          n1=$(grep -rl strncpy_from_user_nofault drivers/kernelsu 2>/dev/null | wc -l)
+          grep -rl strncpy_from_user_nofault drivers/kernelsu 2>/dev/null | xargs -r sed -i 's/strncpy_from_user_nofault/strncpy_from_user/g'
+          echo "[+] strncpy_from_user_nofault -> strncpy_from_user ($n1 files)"
+          n2=$(grep -rl 'TWA_RESUME' drivers/kernelsu 2>/dev/null | wc -l)
+          grep -rl 'TWA_RESUME' drivers/kernelsu 2>/dev/null | xargs -r sed -i 's/, TWA_RESUME)/, true)/g'
+          echo "[+] TWA_RESUME -> true ($n2 files)"
+          grep -rn 'TWA_RESUME\|strncpy_from_user_nofault' drivers/kernelsu 2>/dev/null | head -5 || echo "[+] 无残留"
       - name: configure
         run: |
           cd kernel
