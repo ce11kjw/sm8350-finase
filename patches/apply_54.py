@@ -9,6 +9,19 @@ P = os.path.join(ROOT, 'patches')
 def read(p): return open(p, encoding='utf-8', errors='ignore').read()
 def write(p, s): open(p, 'w', encoding='utf-8').write(s)
 
+# 0) 补齐 5.4 里不存在但 FinaSU 引用的内核头（转发到 kernel.h / asm/pgtable.h）
+SHIMS = {
+    'linux/pgtable.h': '#include <asm/pgtable.h>\n',
+    'linux/minmax.h': '#include <linux/kernel.h>\n',
+    'linux/hex.h': '#include <linux/kernel.h>\n',
+}
+for name, body in SHIMS.items():
+    p = f'include/{name}'
+    if not os.path.exists(p):
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        write(p, '/* 5.4 compat shim */\n' + body)
+        print(f'[apply54] shim {name}')
+
 # 1) rules.c：改成 5.4 的 ss->policydb 路径
 write(f'{K}/selinux/rules.c', read(os.path.join(P, 'rules_54.c')))
 print('[apply54] rules.c replaced')
