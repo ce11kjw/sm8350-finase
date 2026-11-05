@@ -70,6 +70,7 @@ jobs:
         run: |
           cd kernel/drivers/kernelsu
           python3 "$GITHUB_WORKSPACE/patches/ksu_diag.py"
+          python3 "$GITHUB_WORKSPACE/patches/ksu_diag3.py"
       - name: susfs
         run: |
           cd kernel
