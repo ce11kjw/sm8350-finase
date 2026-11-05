@@ -20,32 +20,9 @@ print('[apply54] rules.c replaced')
 write(f'{K}/feature/selinux_hide.c', read(os.path.join(P, 'selinux_hide_stub.c')))
 print('[apply54] selinux_hide.c stubbed')
 
-# 3) 删除 sepolicy.c 里两个 5.7 专属函数
-def drop_func(src, header):
-    i = src.find(header)
-    if i < 0:
-        return src, False
-    j = src.find('{', i)
-    depth, k = 0, j
-    while k < len(src):
-        if src[k] == '{':
-            depth += 1
-        elif src[k] == '}':
-            depth -= 1
-            if depth == 0:
-                break
-        k += 1
-    end = k + 1
-    while end < len(src) and src[end] == '\n':
-        end += 1
-    return src[:i] + src[end:], True
-
-p = f'{K}/selinux/sepolicy.c'
-s = read(p)
-for h in ('void ksu_destroy_sepolicy(', 'struct selinux_policy *ksu_dup_sepolicy('):
-    s, ok = drop_func(s, h)
-    print(f'[apply54] drop {h.strip()} -> {ok}')
-write(p, s)
+# 3) sepolicy.c 换 5.4 版（add_filename_trans 降级 + 去掉 dup/destroy）
+write(f'{K}/selinux/sepolicy.c', read(os.path.join(P, 'sepolicy_54.c')))
+print('[apply54] sepolicy.c replaced')
 
 # 4) sepolicy.h 去掉声明
 p = f'{K}/selinux/sepolicy.h'
