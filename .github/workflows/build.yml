@@ -91,7 +91,7 @@ jobs:
         run: |
           cd kernel
           set +e
-          make O=out ARCH=arm64 CC=clang-14 LD=ld.lld-14 AR=llvm-ar-14 NM=llvm-nm-14 OBJCOPY=llvm-objcopy-14 OBJDUMP=llvm-objdump-14 STRIP=llvm-strip-14 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 TARGET_PRODUCT=star -j$(nproc) KCFLAGS="-Wno-error" KSU_REQUIRE_PREINIT=1 KSU_EXPECTED_SIZE=0x02cc KSU_EXPECTED_HASH=2d89b50aaf1db013c2b6738f973f48b62ea21a3a8d7216bfec3521065d448458 Image > /tmp/build.log 2>&1
+          make O=out ARCH=arm64 CC=clang-14 LD=ld.lld-14 AR=llvm-ar-14 NM=llvm-nm-14 OBJCOPY=llvm-objcopy-14 OBJDUMP=llvm-objdump-14 STRIP=llvm-strip-14 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 TARGET_PRODUCT=star -j$(nproc) KCFLAGS="-Wno-error" KSU_REQUIRE_PREINIT=1 KSU_EXPECTED_SIZE2=0x02cc KSU_EXPECTED_HASH2=2d89b50aaf1db013c2b6738f973f48b62ea21a3a8d7216bfec3521065d448458 KSU_SECOND_SIGNATURE_RELEASE=1 Image > /tmp/build.log 2>&1
           rc=$?
           echo "make exit=$rc"
           first=$(grep -nE 'Error [0-9]+' /tmp/build.log | head -1 | cut -d: -f1)
