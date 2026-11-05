@@ -52,6 +52,9 @@ jobs:
             sed -i 's/SECCOMP_ARCH_NATIVE_NR/__NR_syscalls/g' drivers/kernelsu/infra/seccomp_cache.c
             echo "[+] SECCOMP_ARCH_NATIVE_NR -> __NR_syscalls"
           fi
+          for f in $(grep -rl -e put_task_struct -e get_task_struct drivers/kernelsu --include='*.c' 2>/dev/null); do
+            if ! grep -q 'linux/sched/task.h' "$f"; then sed -i '1i #include <linux/sched/task.h>' "$f"; echo "[+] sched/task.h -> $f"; fi
+          done
           if [ -f drivers/kernelsu/Kbuild ]; then
             sed -i '/manager\/pkg_observer\.o/d' drivers/kernelsu/Kbuild
             echo "[+] dropped pkg_observer.o (fsnotify 5.9+ API, no callers)"
