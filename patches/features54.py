@@ -78,6 +78,16 @@ else:
             open(kc, 'w', encoding='utf-8').write(s)
             ok.append('fs/Kconfig')
 
+# ---------------------------------------------------------------- 3.5) ksu.h
+p = f'{K}/include/ksu.h'
+s = open(p, encoding='utf-8').read()
+if 'backup_sepolicy' not in s:
+    s += '\nextern struct selinux_policy *backup_sepolicy;\n'
+    open(p, 'w', encoding='utf-8').write(s)
+    ok.append('ksu.h')
+else:
+    ok.append('ksu.h(already)')
+
 # ---------------------------------------------------------------- 4) report
 for f in ('feature/selinux_hide.c', 'manager/pkg_observer.c'):
     p = f'{K}/{f}'
