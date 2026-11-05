@@ -3,7 +3,6 @@ on:
   workflow_dispatch:
     inputs:
       ksu_ref:
-        description: FinaSU ref
         default: v1.4.5
 jobs:
   build:
@@ -14,7 +13,7 @@ jobs:
       - name: deps
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq bc bison build-essential flex libssl-dev libelf-dev zip unzip cpio rsync python3 git curl device-tree-compiler
+          sudo apt-get install -y -qq bc bison build-essential flex libssl-dev libelf-dev zip unzip cpio rsync python3 git curl device-tree-compiler gcc-aarch64-linux-gnu
       - name: clang
         run: |
           mkdir -p $HOME/clang
@@ -26,6 +25,7 @@ jobs:
             echo "flatten from $d"
             mv "$d"/* $HOME/clang/ || true
           fi
+          ls $HOME/clang/bin | grep -E '^(clang|ld\.lld|llvm-|aarch64)' | head -15
           $HOME/clang/bin/clang --version | head -2
           echo "$HOME/clang/bin" >> $GITHUB_PATH
       - name: kernel source
@@ -33,35 +33,39 @@ jobs:
           curl -fL --retry 3 --retry-delay 3 -o /tmp/k.tar.gz https://codeload.github.com/LineageOS/android_kernel_xiaomi_sm8350/tar.gz/8252226d349c
           mkdir -p kernel
           tar -xzf /tmp/k.tar.gz -C kernel --strip-components=1
-          ls kernel | head -5
-          test -d kernel/drivers || (echo 'no drivers dir'; exit 1)
+          head -3 kernel/Makefile
+          test -d kernel/drivers
       - name: finasu
         run: |
           git clone --depth 1 -b ${{ inputs.ksu_ref }} https://github.com/LyraVoid/FinaSU.git /tmp/finasu
           cd kernel
           bash /tmp/finasu/kernel/setup.sh --dir /tmp/finasu ${{ inputs.ksu_ref }}
+          ls drivers/kernelsu | head -5
       - name: configure
         run: |
           cd kernel
-          make O=out ARCH=arm64 LLVM=1 TARGET_PRODUCT=star vendor/lahaina-qgki_defconfig vendor/debugfs.config vendor/xiaomi_QGKI.config
+          make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- TARGET_PRODUCT=star vendor/lahaina-qgki_defconfig vendor/debugfs.config vendor/xiaomi_QGKI.config
           for c in KSU KPROBES KALLSYMS_ALL EXT4_FS HEADERS_INSTALL KSU_SUSFS THREAD_INFO_IN_TASK; do
             ./scripts/config --file out/.config --enable $c
           done
           ./scripts/config --file out/.config --disable KSU_HOOK_SUSFS_INLINE
           ./scripts/config --file out/.config --disable WERROR
-          make O=out ARCH=arm64 LLVM=1 TARGET_PRODUCT=star olddefconfig
+          make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- TARGET_PRODUCT=star olddefconfig
           grep -E "^CONFIG_(KSU|KSU_SUSFS|KPROBES|KALLSYMS_ALL|EXT4_FS|HEADERS_INSTALL)=" out/.config
       - name: build
         run: |
           cd kernel
           set +e
-          make O=out ARCH=arm64 LLVM=1 TARGET_PRODUCT=star -j$(nproc)             KCFLAGS="-Wno-error"             KSU_REQUIRE_PREINIT=1             KSU_EXPECTED_SIZE=0x02cc             KSU_EXPECTED_HASH=2d89b50aaf1db013c2b6738f973f48b62ea21a3a8d7216bfec3521065d448458             Image > /tmp/build.log 2>&1
+          make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- TARGET_PRODUCT=star -j$(nproc) \
+            KCFLAGS="-Wno-error" \
+            KSU_REQUIRE_PREINIT=1 \
+            KSU_EXPECTED_SIZE=0x02cc \
+            KSU_EXPECTED_HASH=2d89b50aaf1db013c2b6738f973f48b62ea21a3a8d7216bfec3521065d448458 \
+            Image > /tmp/build.log 2>&1
           rc=$?
           echo "make exit=$rc"
-          echo "===== 前 40 条错误 ====="
-          grep -nE "error:|Error [0-9]+|fatal|undefined reference|No such file" /tmp/build.log | head -40
-          echo "===== 末尾 40 行 ====="
-          tail -40 /tmp/build.log
+          first=$(grep -nE 'Error [0-9]+' /tmp/build.log | head -1 | cut -d: -f1)
+          if [ -n "$first" ]; then echo "--- 上下文 ---"; sed -n "$((first-30)),$((first+3))p" /tmp/build.log; else tail -40 /tmp/build.log; fi
           ls -l out/arch/arm64/boot/Image 2>/dev/null
           exit $rc
       - name: package
@@ -69,11 +73,12 @@ jobs:
           git clone --depth 1 https://github.com/osm0sis/AnyKernel3.git ak3
           cp kernel/out/arch/arm64/boot/Image ak3/Image
           cd ak3
-          sed -i 's|^kernel.string=.*|kernel.string=FinaSU sm8350 star (CI build)|' anykernel.sh
+          sed -i 's|^kernel.string=.*|kernel.string=FinaSU sm8350 star (CI)|' anykernel.sh
           sed -i 's|^do.devicecheck=.*|do.devicecheck=1|' anykernel.sh
           sed -i 's|^device.name1=.*|device.name1=star|' anykernel.sh
           sed -i 's|^device.name2=.*|device.name2=mars|' anykernel.sh
           sed -i 's|^device.name3=.*|device.name3=|' anykernel.sh
+          sed -i 's|^device.name4=.*|device.name4=|' anykernel.sh
           sed -i 's|^block=.*|block=/dev/block/bootdevice/by-name/boot;|' anykernel.sh
           zip -r9 "$GITHUB_WORKSPACE/finasu-sm8350-star.zip" . -x ".git/*" "README.md" ".github/*"
           cd .. && ls -lh finasu-sm8350-star.zip
