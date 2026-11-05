@@ -43,6 +43,35 @@ def rep(path, old, new, tag, count=1):
     ok.append(tag)
 
 
+# ---------------- 0) pmd_leaf + diag vars (ksu_diag.py is optional) ----------------
+P0 = 'hook/arm64/patch_memory.c'
+s0 = rd(P0)
+if 'define pmd_leaf' not in s0:
+    a0 = '#include "asm-generic/fixmap.h"\n'
+    if a0 in s0:
+        s0 = s0.replace(a0, a0 +
+            '\n/* 5.4: pmd_leaf arrived in 5.9; pmd_sect is the equivalent */\n'
+            '#ifndef pmd_leaf\n#define pmd_leaf(pmd) pmd_sect(pmd)\n#endif\n', 1)
+        wr(P0, s0)
+        ok.append('pmd_leaf')
+    else:
+        warn.append('pmd_leaf: anchor missing')
+else:
+    ok.append('pmd_leaf(already)')
+
+P0 = 'hook/arm64/syscall_hook.c'
+s0 = rd(P0)
+if 'int ksu_diag_tbl_ok' not in s0:
+    a0 = 'syscall_fn_t *ksu_syscall_table = NULL;\n'
+    if a0 in s0:
+        s0 = s0.replace(a0, a0 + '\nint ksu_diag_tbl_ok = -1;\nint ksu_diag_disp_ok = -1;\n', 1)
+        wr(P0, s0)
+        ok.append('diag-vars')
+    else:
+        warn.append('diag-vars: anchor missing')
+else:
+    ok.append('diag-vars(already)')
+
 # ---------------- 1) saved-original table + accessor ----------------
 P = 'hook/arm64/syscall_hook.c'
 rep(P,
