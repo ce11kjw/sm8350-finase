@@ -49,6 +49,18 @@ void ksu_destroy_sepolicy(struct selinux_policy *pol);
 else:
     ok.append('sepolicy.h(already)')
 
+# ---------------------------------------------------------------- 2.5) Kbuild
+# apply_54.py wires the pkg_observer stub into Kbuild; switch it back to the
+# real object now that manager/pkg_observer.c is the 5.4 implementation.
+p = f'{K}/Kbuild'
+s = open(p, encoding='utf-8').read()
+if 'manager/pkg_observer_stub.o' in s:
+    s = s.replace('manager/pkg_observer_stub.o', 'manager/pkg_observer.o')
+    open(p, 'w', encoding='utf-8').write(s)
+    ok.append('Kbuild:pkg_observer')
+else:
+    ok.append('Kbuild(already)')
+
 # ---------------------------------------------------------------- 3) NoMount
 src = '/tmp/finasu/userspace/nomount/kernel/src'
 dst = 'fs/nomount'
