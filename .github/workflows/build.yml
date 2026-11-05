@@ -35,18 +35,27 @@ jobs:
           git clone --depth 1 -b ${{ inputs.ksu_ref }} https://github.com/LyraVoid/FinaSU.git /tmp/finasu
           cd kernel
           bash /tmp/finasu/kernel/setup.sh --dir /tmp/finasu ${{ inputs.ksu_ref }}
-          echo "=== 5.4 (kernel 5.4) 兼容补丁 ==="
+          echo "=== 5.4 兼容补丁 ==="
           if [ ! -f include/linux/pgtable.h ]; then
             echo '#include <asm/pgtable.h>' > include/linux/pgtable.h
-            echo "[+] linux/pgtable.h shim created"
+            echo "[+] pgtable.h shim"
           fi
-          n1=$(grep -rl strncpy_from_user_nofault drivers/kernelsu 2>/dev/null | wc -l)
-          grep -rl strncpy_from_user_nofault drivers/kernelsu 2>/dev/null | xargs -r sed -i 's/strncpy_from_user_nofault/strncpy_from_user/g'
-          echo "[+] strncpy_from_user_nofault -> strncpy_from_user ($n1 files)"
-          n2=$(grep -rl 'TWA_RESUME' drivers/kernelsu 2>/dev/null | wc -l)
-          grep -rl 'TWA_RESUME' drivers/kernelsu 2>/dev/null | xargs -r sed -i 's/, TWA_RESUME)/, true)/g'
-          echo "[+] TWA_RESUME -> true ($n2 files)"
-          grep -rn 'TWA_RESUME\|strncpy_from_user_nofault' drivers/kernelsu 2>/dev/null | head -5 || echo "[+] 无残留"
+          pt() {
+            local from="$1" to="$2"
+            local n=$(grep -rl -- "$from" drivers/kernelsu 2>/dev/null | wc -l)
+            grep -rl -- "$from" drivers/kernelsu 2>/dev/null | xargs -r sed -i "s/$from/$to/g"
+            echo "[+] $from -> $to  ($n files)"
+          }
+          pt strncpy_from_user_nofault strncpy_from_user
+          pt copy_to_kernel_nofault probe_kernel_write
+          pt copy_from_kernel_nofault probe_kernel_read
+          pt copy_to_user_nofault copy_to_user
+          pt copy_from_user_nofault copy_from_user
+          n=$(grep -rl TWA_RESUME drivers/kernelsu 2>/dev/null | wc -l)
+          grep -rl TWA_RESUME drivers/kernelsu 2>/dev/null | xargs -r sed -i 's/, TWA_RESUME)/, true)/g'
+          echo "[+] TWA_RESUME -> true ($n files)"
+          echo "--- 残留检查 ---"
+          grep -rn 'nofault\|TWA_RESUME' drivers/kernelsu 2>/dev/null | head -5 || echo "[+] clean"
       - name: configure
         run: |
           cd kernel
