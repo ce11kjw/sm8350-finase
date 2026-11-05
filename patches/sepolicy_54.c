@@ -4,6 +4,8 @@
 #include "ss/hashtab.h"
 #include "ss/policydb.h"
 #include "ss/services.h"
+#include "ss/sidtab.h"
+#include <linux/vmalloc.h>
 #include <linux/gfp.h>
 #include <linux/printk.h>
 #include <linux/slab.h>
@@ -899,3 +901,91 @@ out_free_data:
 
     return ERR_PTR(ret);
 }
+
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 7, 0)
+/*
+ * 5.4: no struct selinux_policy and no sidtab_dup(). The backup policy used by
+ * selinux_hide is serialised out of the pristine live policydb before KSU
+ * applies its in-place rules, then re-read into a private carrier. Its sidtab
+ * only needs the initial SIDs; sidtab_context_to_sid() grows it on demand.
+ */
+struct selinux_policy *ksu_dup_sepolicy(struct policydb *old_db)
+{
+    struct selinux_policy *new_pol;
+    struct policy_file fp;
+    void *data;
+    size_t len;
+    int ret;
+
+    if (!old_db)
+        return NULL;
+
+    len = old_db->len ? old_db->len : (4U * 1024U * 1024U);
+    if (old_db->p_types.nprim)
+        len += (size_t)old_db->p_types.nprim * (sizeof(u32) + sizeof(u64));
+    if (len < (1U * 1024U * 1024U))
+        len = 1U * 1024U * 1024U;
+
+    for (;;) {
+        data = vmalloc(len);
+        if (!data)
+            return NULL;
+        fp.data = data;
+        fp.len = len;
+        ret = policydb_write(old_db, &fp);
+        if (!ret)
+            break;
+        vfree(data);
+        if (len >= (128U * 1024U * 1024U)) {
+            pr_err("ksu_dup_sepolicy: policydb_write failed: %d\n", ret);
+            return NULL;
+        }
+        len *= 2;
+    }
+
+    len -= fp.len;
+
+    new_pol = kzalloc(sizeof(*new_pol), GFP_KERNEL);
+    if (!new_pol) {
+        vfree(data);
+        return NULL;
+    }
+
+    fp.data = data;
+    fp.len = len;
+    ret = policydb_read(&new_pol->policydb, &fp);
+    vfree(data);
+    if (ret) {
+        pr_err("ksu_dup_sepolicy: policydb_read failed: %d\n", ret);
+        kfree(new_pol);
+        return NULL;
+    }
+
+    new_pol->sidtab = kzalloc(sizeof(struct sidtab), GFP_KERNEL);
+    if (!new_pol->sidtab) {
+        policydb_destroy(&new_pol->policydb);
+        kfree(new_pol);
+        return NULL;
+    }
+
+    ret = policydb_load_isids(&new_pol->policydb, new_pol->sidtab);
+    if (ret) {
+        pr_err("ksu_dup_sepolicy: policydb_load_isids failed: %d\n", ret);
+        kfree(new_pol->sidtab);
+        policydb_destroy(&new_pol->policydb);
+        kfree(new_pol);
+        return NULL;
+    }
+
+    return new_pol;
+}
+
+void ksu_destroy_sepolicy(struct selinux_policy *pol)
+{
+    if (!pol)
+        return;
+    policydb_destroy(&pol->policydb);
+    kfree(pol);
+}
+#endif
