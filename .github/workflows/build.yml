@@ -35,6 +35,11 @@ jobs:
           git clone --depth 1 -b ${{ inputs.ksu_ref }} https://github.com/LyraVoid/FinaSU.git /tmp/finasu
           cd kernel
           bash /tmp/finasu/kernel/setup.sh --dir /tmp/finasu ${{ inputs.ksu_ref }}
+          echo "--- 5.4 兼容：补 linux/pgtable.h ---"
+          if [ ! -f include/linux/pgtable.h ]; then
+            echo '#include <asm/pgtable.h>' > include/linux/pgtable.h
+            echo "created include/linux/pgtable.h shim"
+          fi
       - name: configure
         run: |
           cd kernel
@@ -42,6 +47,7 @@ jobs:
           for c in KSU KPROBES KALLSYMS_ALL EXT4_FS HEADERS_INSTALL THREAD_INFO_IN_TASK; do
             ./scripts/config --file out/.config --enable $c
           done
+          ./scripts/config --file out/.config --disable KSU_SUSFS
           ./scripts/config --file out/.config --disable KSU_SUSFS
           ./scripts/config --file out/.config --disable KSU_HOOK_SUSFS_INLINE
           ./scripts/config --file out/.config --disable WERROR
