@@ -13,7 +13,7 @@ jobs:
       - name: deps
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq bc bison build-essential flex libssl-dev libelf-dev zip unzip cpio rsync python3 git curl device-tree-compiler gcc-aarch64-linux-gnu
+          sudo apt-get install -y -qq bc bison build-essential flex libssl-dev libelf-dev zip unzip cpio rsync python3 git curl device-tree-compiler gcc-aarch64-linux-gnu libxml2 libtinfo6 libncurses6
       - name: clang
         run: |
           mkdir -p $HOME/clang
@@ -22,25 +22,30 @@ jobs:
           if [ ! -x "$HOME/clang/bin/clang" ]; then
             d=$(find $HOME/clang -maxdepth 4 -type f -name clang | head -1)
             d=$(dirname $(dirname "$d"))
-            echo "flatten from $d"
             mv "$d"/* $HOME/clang/ || true
           fi
-          ls $HOME/clang/bin | grep -E '^(clang|ld\.lld|llvm-|aarch64)' | head -15
+          # 修 libxml2 soname（Ubuntu 24.04 改成 .so.2t64）
+          for pair in "libxml2.so.2 libxml2.so.2t64" "libtinfo.so.5 libtinfo.so.6" "libncurses.so.5 libncurses.so.6"; do
+            set -- $pair
+            if [ ! -e "/usr/lib/x86_64-linux-gnu/$1" ] && [ -e "/usr/lib/x86_64-linux-gnu/$2" ]; then
+              sudo ln -sf "/usr/lib/x86_64-linux-gnu/$2" "/usr/lib/x86_64-linux-gnu/$1"
+              echo "linked $1 -> $2"
+            fi
+          done
           $HOME/clang/bin/clang --version | head -2
+          $HOME/clang/bin/ld.lld --version
           echo "$HOME/clang/bin" >> $GITHUB_PATH
       - name: kernel source
         run: |
           curl -fL --retry 3 --retry-delay 3 -o /tmp/k.tar.gz https://codeload.github.com/LineageOS/android_kernel_xiaomi_sm8350/tar.gz/8252226d349c
           mkdir -p kernel
           tar -xzf /tmp/k.tar.gz -C kernel --strip-components=1
-          head -3 kernel/Makefile
           test -d kernel/drivers
       - name: finasu
         run: |
           git clone --depth 1 -b ${{ inputs.ksu_ref }} https://github.com/LyraVoid/FinaSU.git /tmp/finasu
           cd kernel
           bash /tmp/finasu/kernel/setup.sh --dir /tmp/finasu ${{ inputs.ksu_ref }}
-          ls drivers/kernelsu | head -5
       - name: configure
         run: |
           cd kernel
@@ -57,15 +62,14 @@ jobs:
           cd kernel
           set +e
           make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- TARGET_PRODUCT=star -j$(nproc) \
-            KCFLAGS="-Wno-error" \
-            KSU_REQUIRE_PREINIT=1 \
+            KCFLAGS="-Wno-error" KSU_REQUIRE_PREINIT=1 \
             KSU_EXPECTED_SIZE=0x02cc \
             KSU_EXPECTED_HASH=2d89b50aaf1db013c2b6738f973f48b62ea21a3a8d7216bfec3521065d448458 \
             Image > /tmp/build.log 2>&1
           rc=$?
           echo "make exit=$rc"
           first=$(grep -nE 'Error [0-9]+' /tmp/build.log | head -1 | cut -d: -f1)
-          if [ -n "$first" ]; then echo "--- 上下文 ---"; sed -n "$((first-30)),$((first+3))p" /tmp/build.log; else tail -40 /tmp/build.log; fi
+          if [ -n "$first" ]; then sed -n "$((first-25)),$((first+3))p" /tmp/build.log; else tail -40 /tmp/build.log; fi
           ls -l out/arch/arm64/boot/Image 2>/dev/null
           exit $rc
       - name: package
