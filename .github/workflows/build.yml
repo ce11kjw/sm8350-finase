@@ -14,7 +14,10 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq bc bison build-essential flex libssl-dev libelf-dev zip unzip cpio rsync python3 git curl device-tree-compiler clang-14 lld-14 llvm-14
-          clang-14 --version | head -1
+          for t in clang ld.lld llvm-ar llvm-nm llvm-objcopy llvm-objdump llvm-strip llvm-readelf; do
+            sudo ln -sf /usr/bin/$t-14 /usr/local/bin/$t 2>/dev/null || true
+          done
+          clang-14 --version | head -1; llvm-nm --version | head -1
       - name: kernel source
         run: |
           curl -fL --retry 3 --retry-delay 3 -o /tmp/k.tar.gz https://codeload.github.com/LineageOS/android_kernel_xiaomi_sm8350/tar.gz/8252226d349c
@@ -44,6 +47,11 @@ jobs:
           # 5.4 没有 anon inode LSM hook
           grep -rl security_inode_init_security_anon drivers/kernelsu 2>/dev/null | xargs -r sed -i 's/security_inode_init_security_anon(inode, &qname, context_inode)/0/g'
           echo "[+] security_inode_init_security_anon -> 0"
+          if [ -f drivers/kernelsu/infra/seccomp_cache.c ]; then
+            sed -i '1i #include <asm/unistd.h>' drivers/kernelsu/infra/seccomp_cache.c
+            sed -i 's/SECCOMP_ARCH_NATIVE_NR/__NR_syscalls/g' drivers/kernelsu/infra/seccomp_cache.c
+            echo "[+] SECCOMP_ARCH_NATIVE_NR -> __NR_syscalls"
+          fi
           # path_umount 回移（Linux 5.9 才有）
           if ! grep -q 'int path_umount' fs/namespace.c; then
             printf '\n/* 5.4 backport: path_umount (Linux 5.9) for KernelSU */\nint path_umount(struct path *path, int flags)\n{\n\tstruct mount *mnt = real_mount(path->mnt);\n\tint ret;\n\tret = do_umount(mnt, flags);\n\tif (!ret) {\n\t\tdput(path->dentry);\n\t\tmntput_no_expire(mnt);\n\t}\n\treturn ret;\n}\n' >> fs/namespace.c
