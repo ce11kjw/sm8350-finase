@@ -67,6 +67,7 @@ jobs:
           fi
           grep -rn 'nofault\|TWA_RESUME\|security_inode_init_security_anon' drivers/kernelsu 2>/dev/null | head -3 || echo "[+] clean"
       - name: ksu diag
+        if: ${{ inputs.stealth != '1' }}
         run: |
           cd kernel/drivers/kernelsu
           python3 "$GITHUB_WORKSPACE/patches/ksu_diag.py"
@@ -75,6 +76,7 @@ jobs:
         run: |
           cd kernel
           python3 "$GITHUB_WORKSPACE/patches/features54.py" "$GITHUB_WORKSPACE/patches"
+          python3 "$GITHUB_WORKSPACE/patches/stealth54.py"
       - name: susfs
         run: |
           cd kernel
@@ -93,6 +95,9 @@ jobs:
           make O=out ARCH=arm64 CC=clang-14 LD=ld.lld-14 AR=llvm-ar-14 NM=llvm-nm-14 OBJCOPY=llvm-objcopy-14 OBJDUMP=llvm-objdump-14 STRIP=llvm-strip-14 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 TARGET_PRODUCT=star vendor/lahaina-qgki_defconfig vendor/debugfs.config vendor/xiaomi_QGKI.config
           for c in KSU KPROBES KALLSYMS_ALL EXT4_FS HEADERS_INSTALL KSU_SUSFS THREAD_INFO_IN_TASK KSU_SUSFS_SUS_PATH KSU_SUSFS_SUS_MOUNT KSU_SUSFS_SUS_KSTAT KSU_SUSFS_SPOOF_UNAME KSU_SUSFS_ENABLE_LOG KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS KSU_SUSFS_OPEN_REDIRECT KSU_SUSFS_SUS_MAP KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG NOMOUNT; do ./scripts/config --file out/.config --enable $c; done
                     ./scripts/config --file out/.config --disable KSU_HOOK_SUSFS_INLINE
+          ./scripts/config --file out/.config --disable KSU_SUSFS_ENABLE_LOG
+          ./scripts/config --file out/.config --disable KSU_DEBUG
+          ./scripts/config --file out/.config --disable IKCONFIG_PROC
           ./scripts/config --file out/.config --disable WERROR
           make O=out ARCH=arm64 CC=clang-14 LD=ld.lld-14 AR=llvm-ar-14 NM=llvm-nm-14 OBJCOPY=llvm-objcopy-14 OBJDUMP=llvm-objdump-14 STRIP=llvm-strip-14 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 TARGET_PRODUCT=star olddefconfig
           grep -E "^CONFIG_(KSU|KPROBES|KALLSYMS_ALL|EXT4_FS|HEADERS_INSTALL)=" out/.config
