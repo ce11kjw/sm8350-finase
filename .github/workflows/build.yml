@@ -60,10 +60,6 @@ jobs:
           for f in $(grep -rl -e put_task_struct -e get_task_struct drivers/kernelsu --include='*.c' 2>/dev/null); do
             if ! grep -q 'linux/sched/task.h' "$f"; then sed -i '1i #include <linux/sched/task.h>' "$f"; echo "[+] sched/task.h -> $f"; fi
           done
-          if [ -f drivers/kernelsu/Kbuild ]; then
-            sed -i '/manager\/pkg_observer\.o/d' drivers/kernelsu/Kbuild
-            echo "[+] dropped pkg_observer.o (fsnotify 5.9+ API, no callers)"
-          fi
           # path_umount 回移（Linux 5.9 才有）
           if ! grep -q 'int path_umount' fs/namespace.c; then
             printf '\n/* 5.4 backport: path_umount (Linux 5.9) for KernelSU */\nint path_umount(struct path *path, int flags)\n{\n\tstruct mount *mnt = real_mount(path->mnt);\n\tint ret;\n\tret = do_umount(mnt, flags);\n\tif (!ret) {\n\t\tdput(path->dentry);\n\t\tmntput_no_expire(mnt);\n\t}\n\treturn ret;\n}\n' >> fs/namespace.c
