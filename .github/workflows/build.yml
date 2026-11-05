@@ -1,0 +1,76 @@
+name: build
+on:
+  workflow_dispatch:
+    inputs:
+      ksu_ref:
+        description: FinaSU ref
+        default: v1.4.5
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 200
+    steps:
+      - uses: actions/checkout@v4
+      - name: deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bc bison build-essential flex libssl-dev libelf-dev \
+            zip unzip cpio rsync python3 git curl device-tree-compiler
+      - name: clang
+        run: |
+          mkdir -p $HOME/clang
+          curl -fL --retry 3 -o /tmp/clang.tar.gz "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r487747c.tar.gz"
+          tar -xzf /tmp/clang.tar.gz -C $HOME/clang
+          $HOME/clang/bin/clang --version | head -2
+      - name: kernel source
+        run: |
+          git init kernel
+          cd kernel
+          git remote add origin https://github.com/LineageOS/android_kernel_xiaomi_sm8350
+          git fetch --depth 1 origin 8252226d349c
+          git checkout FETCH_HEAD
+          echo "HEAD=$(git rev-parse --short HEAD)"
+      - name: finasu
+        run: |
+          git clone --depth 1 -b ${{ inputs.ksu_ref }} https://github.com/LyraVoid/FinaSU.git /tmp/finasu
+          cd kernel
+          bash /tmp/finasu/kernel/setup.sh --dir /tmp/finasu ${{ inputs.ksu_ref }}
+      - name: configure
+        run: |
+          cd kernel
+          export PATH=$HOME/clang/bin:$PATH
+          make O=out ARCH=arm64 LLVM=1 TARGET_PRODUCT=star \
+            vendor/lahaina-qgki_defconfig vendor/debugfs.config vendor/xiaomi_QGKI.config
+          for c in KSU KPROBES KALLSYMS_ALL EXT4_FS HEADERS_INSTALL KSU_SUSFS THREAD_INFO_IN_TASK; do
+            ./scripts/config --file out/.config --enable $c
+          done
+          ./scripts/config --file out/.config --disable KSU_HOOK_SUSFS_INLINE
+          make O=out ARCH=arm64 LLVM=1 TARGET_PRODUCT=star olddefconfig
+          grep -E "^CONFIG_(KSU|KPROBES|KALLSYMS_ALL|EXT4_FS|HEADERS_INSTALL)=" out/.config
+      - name: build
+        run: |
+          cd kernel
+          export PATH=$HOME/clang/bin:$PATH
+          make O=out ARCH=arm64 LLVM=1 TARGET_PRODUCT=star -j$(nproc) \
+            KSU_REQUIRE_PREINIT=1 \
+            KSU_EXPECTED_SIZE=0x02cc \
+            KSU_EXPECTED_HASH=2d89b50aaf1db013c2b6738f973f48b62ea21a3a8d7216bfec3521065d448458 \
+            Image
+          ls -l out/arch/arm64/boot/Image
+      - name: package
+        run: |
+          git clone --depth 1 https://github.com/osm0sis/AnyKernel3.git ak3
+          cp kernel/out/arch/arm64/boot/Image ak3/Image
+          cd ak3
+          sed -i 's|^kernel.string=.*|kernel.string=FinaSU sm8350 star (CI build)|' anykernel.sh
+          sed -i 's|^do.devicecheck=.*|do.devicecheck=1|' anykernel.sh
+          sed -i 's|^device.name1=.*|device.name1=star|' anykernel.sh
+          sed -i 's|^device.name2=.*|device.name2=mars|' anykernel.sh
+          sed -i 's|^device.name3=.*|device.name3=|' anykernel.sh
+          sed -i 's|^block=.*|block=/dev/block/bootdevice/by-name/boot;|' anykernel.sh
+          zip -r9 "$GITHUB_WORKSPACE/finasu-sm8350-star.zip" . -x ".git/*" "README.md" ".github/*"
+          cd .. && ls -lh finasu-sm8350-star.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: finasu-sm8350-star
+          path: finasu-sm8350-star.zip
