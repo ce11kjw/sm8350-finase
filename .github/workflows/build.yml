@@ -54,6 +54,10 @@ jobs:
           n=$(grep -rl TWA_RESUME drivers/kernelsu 2>/dev/null | wc -l)
           grep -rl TWA_RESUME drivers/kernelsu 2>/dev/null | xargs -r sed -i 's/, TWA_RESUME)/, true)/g'
           echo "[+] TWA_RESUME -> true ($n files)"
+          sed -i 's/error = security_inode_init_security_anon(inode, &qname, context_inode);/error = 0;/' drivers/kernelsu/infra/file_wrapper.c
+          echo "[+] security_inode_init_security_anon -> skipped (5.4)"
+          sed -i 's|extern int path_umount(struct path \*path, int flags);|static int path_umount(struct path *path, int flags) { (void)path; (void)flags; return -ENOSYS; }|' drivers/kernelsu/feature/kernel_umount.c
+          echo "[+] path_umount stubbed (5.4, umount-modules 功能关闭)"
           echo "--- 残留检查 ---"
           grep -rn 'nofault\|TWA_RESUME' drivers/kernelsu 2>/dev/null | head -5 || echo "[+] clean"
       - name: configure
