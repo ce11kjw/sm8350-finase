@@ -52,6 +52,10 @@ jobs:
             sed -i 's/SECCOMP_ARCH_NATIVE_NR/__NR_syscalls/g' drivers/kernelsu/infra/seccomp_cache.c
             echo "[+] SECCOMP_ARCH_NATIVE_NR -> __NR_syscalls"
           fi
+          if [ -f drivers/kernelsu/policy/app_profile.c ]; then
+            sed -i 's|atomic_set(&current->seccomp.filter_count, 0);|/* 5.4: struct seccomp has no filter_count */|' drivers/kernelsu/policy/app_profile.c
+            echo "[+] seccomp.filter_count removed"
+          fi
           for f in $(grep -rl -e put_task_struct -e get_task_struct drivers/kernelsu --include='*.c' 2>/dev/null); do
             if ! grep -q 'linux/sched/task.h' "$f"; then sed -i '1i #include <linux/sched/task.h>' "$f"; echo "[+] sched/task.h -> $f"; fi
           done
