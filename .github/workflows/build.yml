@@ -68,7 +68,7 @@ jobs:
           grep -rn 'nofault\|TWA_RESUME\|security_inode_init_security_anon' drivers/kernelsu 2>/dev/null | head -3 || echo "[+] clean"
       - name: ksu diag
         run: |
-          cd kernel
+          cd kernel/drivers/kernelsu
           python3 "$GITHUB_WORKSPACE/patches/ksu_diag.py"
       - name: susfs
         run: |
