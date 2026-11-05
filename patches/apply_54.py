@@ -84,6 +84,36 @@ for names, hdr in RULES:
             write(f, f'#include <{hdr}>\n' + t)
             print(f'[apply54] +{hdr} -> {f}')
 
+# 5.6) vmlinux 链接阶段缺失符号的处理
+# (a) pkg_observer 桩
+write(f'{K}/manager/pkg_observer_stub.c', read(os.path.join(P, 'pkg_observer_stub.c')))
+kb = f'{K}/Kbuild'
+t = read(kb)
+if 'pkg_observer_stub.o' not in t:
+    t = t.replace('kernelsu-objs += manager/pkg_observer.o',
+                  'kernelsu-objs += manager/pkg_observer_stub.o')
+    if 'pkg_observer_stub.o' not in t:
+        t += '\nkernelsu-objs += manager/pkg_observer_stub.o\n'
+    write(kb, t)
+print('[apply54] pkg_observer stub wired')
+
+# (b) seccomp_filter_release -> 5.4 无此函数，去掉调用（fake task 仅用于 spawn）
+p = f'{K}/policy/app_profile.c'
+t = read(p)
+if 'seccomp_filter_release(fake);' in t:
+    t = t.replace('    seccomp_filter_release(fake);\n', '    /* 5.4: seccomp_filter_release() 不存在，略过 */\n')
+    write(p, t)
+    print('[apply54] seccomp_filter_release dropped')
+
+# (c) path_mount -> 5.4 用 do_mount(用户路径)，此处降级为不做 MS_PRIVATE
+p = f'{K}/infra/su_mount_ns.c'
+t = read(p)
+if 'path_mount(NULL, &root_path' in t:
+    t = t.replace('    int pm_ret = path_mount(NULL, &root_path, NULL, MS_PRIVATE | MS_REC, NULL);',
+                  '    /* 5.4: 无 path_mount(struct path*)，跳过 MS_PRIVATE 设置 */\n    int pm_ret = 0;')
+    write(p, t)
+    print('[apply54] path_mount call degraded')
+
 # 6) 自检
 leftover = 0
 for dp, _, fs in os.walk(K):
