@@ -49,12 +49,26 @@ static void reset_avc_cache()
     selinux_xfrm_notify_policyload();
 }
 
+struct selinux_policy *backup_sepolicy;
+
 void apply_kernelsu_rules()
 {
     struct policydb *db;
 
     if (!getenforce()) {
         pr_info("SELinux permissive or disabled, apply rules!\n");
+    }
+
+    /* Snapshot the pristine policy before the in-place rule edits below:
+     * selinux_hide serves this copy to app UIDs. 5.4 KSU mutates the live
+     * policydb instead of dup+swap, so this must happen first. */
+    if (!backup_sepolicy) {
+        struct selinux_ss *ss = rcu_dereference(selinux_state.ss);
+        if (ss) {
+            backup_sepolicy = ksu_dup_sepolicy(&ss->policydb);
+            if (!backup_sepolicy)
+                pr_err("failed to create backup sepolicy\n");
+        }
     }
 
     rcu_read_lock();
@@ -443,6 +457,18 @@ int handle_sepolicy(void __user *user_data, u64 data_len)
 
     if (!getenforce()) {
         pr_info("SELinux permissive or disabled when handle policy!\n");
+    }
+
+    /* Snapshot the pristine policy before the in-place rule edits below:
+     * selinux_hide serves this copy to app UIDs. 5.4 KSU mutates the live
+     * policydb instead of dup+swap, so this must happen first. */
+    if (!backup_sepolicy) {
+        struct selinux_ss *ss = rcu_dereference(selinux_state.ss);
+        if (ss) {
+            backup_sepolicy = ksu_dup_sepolicy(&ss->policydb);
+            if (!backup_sepolicy)
+                pr_err("failed to create backup sepolicy\n");
+        }
     }
 
     rcu_read_lock();
