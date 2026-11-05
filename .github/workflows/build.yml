@@ -4,6 +4,8 @@ on:
     inputs:
       ksu_ref:
         default: v1.4.5
+      stealth:
+        default: '1'
 jobs:
   build:
     runs-on: ubuntu-22.04
