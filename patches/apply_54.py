@@ -68,6 +68,22 @@ s = read(p)
 write(p, ''.join(l for l in s.splitlines(True) if 'selinux_policy *backup_sepolicy' not in l))
 print('[apply54] ksu.h cleaned')
 
+# 5.5) 补齐 sched 相关头
+RULES = [
+    (('tasklist_lock', 'task_pgrp', 'task_session'), 'linux/sched/signal.h'),
+    (('init_task',), 'linux/sched.h'),
+    (('put_task_struct', 'get_task_struct'), 'linux/sched/task.h'),
+]
+import glob
+for names, hdr in RULES:
+    for f in glob.glob(f'{K}/**/*.c', recursive=True):
+        t = read(f)
+        if hdr in t:
+            continue
+        if any(n in t for n in names):
+            write(f, f'#include <{hdr}>\n' + t)
+            print(f'[apply54] +{hdr} -> {f}')
+
 # 6) 自检
 leftover = 0
 for dp, _, fs in os.walk(K):
