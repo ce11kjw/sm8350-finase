@@ -108,4 +108,29 @@ if 'susfs_task_state' not in s:
         ok.append('fd.c-include')
 wr(p, s)
 
+
+# 4) fs/proc/cmdline.c : 5.4 没有 /proc/bootconfig，改挂到 /proc/cmdline
+p = 'fs/proc/cmdline.c'
+try:
+    s = rd(p)
+    if 'susfs_spoof_cmdline_or_bootconfig' not in s:
+        s = s.replace(
+            "#include <linux/seq_file.h>\n",
+            "#include <linux/seq_file.h>\n"
+            "#ifdef CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG\n"
+            "#include <linux/susfs_def.h>\n"
+            "extern int susfs_spoof_cmdline_or_bootconfig(struct seq_file *m);\n"
+            "#endif\n", 1)
+        s = s.replace(
+            "static int cmdline_proc_show(struct seq_file *m, void *v)\n{\n",
+            "static int cmdline_proc_show(struct seq_file *m, void *v)\n{\n"
+            "#ifdef CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG\n"
+            "\tif (!susfs_spoof_cmdline_or_bootconfig(m))\n"
+            "\t\treturn 0;\n"
+            "#endif\n", 1)
+        wr(p, s)
+        ok.append('cmdline.c(5.4适配)')
+except FileNotFoundError:
+    print('[fixup] cmdline.c 不存在，跳过')
+
 print('[susfs-fixup] 完成:', ', '.join(ok))
