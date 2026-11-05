@@ -211,6 +211,14 @@ rep(P,
     "    unregister_trace_sys_enter(",
     'tp-unreg')
 
+# under SUSFS the setresuid hook is normally left to the SUSFS kernel patch;
+# kernel-5.4's patch has no such call site, so keep our table hook active
+rep(P,
+    "#ifndef CONFIG_KSU_SUSFS\n#ifdef KSU_DIRECT_TABLE_HOOK\n    ksu_syscall_table_hook(__NR_setresuid",
+    "#if !defined(CONFIG_KSU_SUSFS) || defined(KSU_DIRECT_TABLE_HOOK)\n"
+    "#ifdef KSU_DIRECT_TABLE_HOOK\n    ksu_syscall_table_hook(__NR_setresuid",
+    'setresuid-susfs')
+
 # direct mode must not clear the routing table before table restore
 rep(P,
     "#ifndef CONFIG_KSU_SUSFS\n    ksu_unregister_syscall_hook(__NR_setresuid);\n#endif\n",
