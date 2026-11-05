@@ -178,4 +178,64 @@ static inline void susfs_start_sdcard_monitor_fn(void) { }
     wr(p, s)
     ok.append('susfs_def.h 兼容层(13项)')
 
+
+# 6) susfs_def.h 补缺失命令号 + 新建类型转换头 + 引入
+p = 'include/linux/susfs_def.h'
+s = rd(p)
+if 'CMD_SUSFS_ADD_SUS_MAP' not in s:
+    s += r"""
+/* ===== 5.4 补：新版 SUSFS 的命令号与 magic ===== */
+#ifndef SUSFS_MAGIC
+#define SUSFS_MAGIC 0xFAFAFAFA
+#endif
+#ifndef CMD_SUSFS_ADD_SUS_PATH_LOOP
+#define CMD_SUSFS_ADD_SUS_PATH_LOOP 0x55553
+#endif
+#ifndef CMD_SUSFS_HIDE_SUS_MNTS_FOR_NON_SU_PROCS
+#define CMD_SUSFS_HIDE_SUS_MNTS_FOR_NON_SU_PROCS 0x55561
+#endif
+#ifndef CMD_SUSFS_ENABLE_AVC_LOG_SPOOFING
+#define CMD_SUSFS_ENABLE_AVC_LOG_SPOOFING 0x60010
+#endif
+#ifndef CMD_SUSFS_ADD_SUS_MAP
+#define CMD_SUSFS_ADD_SUS_MAP 0x60020
+#endif
+"""
+    wr(p, s); ok.append('susfs_def.h 命令号')
+
+# 类型转换头（只被 FinaSU 的 extension/susfs.c 使用）
+hc = 'drivers/kernelsu/extension/susfs_compat54.h'
+import os
+os.makedirs(os.path.dirname(hc), exist_ok=True)
+if not os.path.exists(hc):
+    wr(hc, r"""/* 5.4: FinaSU 使用新版 SUSFS 接口，这里把 void __user* 转成 5.4 期望的结构指针 */
+#ifndef KSU_SUSFS_COMPAT54_H
+#define KSU_SUSFS_COMPAT54_H
+
+#define susfs_add_sus_path(a)              susfs_add_sus_path((struct st_susfs_sus_path __user *)(a))
+#define susfs_add_sus_path_loop(a)         susfs_add_sus_path((struct st_susfs_sus_path __user *)(a))
+#define susfs_add_sus_mount(a)             susfs_add_sus_mount((struct st_susfs_sus_mount __user *)(a))
+#define susfs_add_sus_kstat(a)             susfs_add_sus_kstat((struct st_susfs_sus_kstat __user *)(a))
+#define susfs_update_sus_kstat(a)          susfs_update_sus_kstat((struct st_susfs_sus_kstat __user *)(a))
+#define susfs_add_try_umount(a)            susfs_add_try_umount((struct st_susfs_try_umount __user *)(a))
+#define susfs_set_uname(a)                 susfs_set_uname((struct st_susfs_uname __user *)(a))
+#define susfs_add_open_redirect(a)         susfs_add_open_redirect((struct st_susfs_open_redirect __user *)(a))
+#define susfs_set_cmdline_or_bootconfig(a) susfs_set_cmdline_or_bootconfig((char __user *)(a))
+#define susfs_enable_log(a)                susfs_set_log(!!(a))
+
+#endif
+""")
+    ok.append('susfs_compat54.h')
+
+# 在 extension/susfs.c 里引入
+p = 'drivers/kernelsu/extension/susfs.c'
+try:
+    s = rd(p)
+    if 'susfs_compat54.h' not in s:
+        s = s.replace('#include <linux/susfs_def.h>\n',
+                      '#include <linux/susfs_def.h>\n#include "extension/susfs_compat54.h"\n', 1)
+        wr(p, s); ok.append('susfs.c 引入转换头')
+except FileNotFoundError:
+    pass
+
 print('[susfs-fixup] 完成:', ', '.join(ok))
