@@ -47,6 +47,16 @@
  */
 #undef CONFIG_KSU_SUSFS
 
+/* 5.4: symtab_search() arrived in 5.9; 5.4's symtab keeps a hashtab pointer */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0)
+#define symtab_search(s, name) hashtab_search((s)->table, name)
+#endif
+
+/* SIMPLE_TRANSACTION_LIMIT is private to selinuxfs.c on 5.4 */
+#ifndef SIMPLE_TRANSACTION_LIMIT
+#define SIMPLE_TRANSACTION_LIMIT (PAGE_SIZE - 32)
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 7, 0)
 typedef struct selinux_ss ksu_live_policy_t;
 #define ksu_live_policy_ss() rcu_dereference(selinux_state.ss)
