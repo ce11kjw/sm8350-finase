@@ -30,12 +30,11 @@ jobs:
           echo "$HOME/clang/bin" >> $GITHUB_PATH
       - name: kernel source
         run: |
-          git init kernel
+          git clone --filter=blob:none --no-checkout https://github.com/LineageOS/android_kernel_xiaomi_sm8350 kernel
           cd kernel
-          git remote add origin https://github.com/LineageOS/android_kernel_xiaomi_sm8350
-          git fetch --depth 1 origin 8252226d349c
-          git checkout FETCH_HEAD
+          git checkout 8252226d349c
           git rev-parse --short HEAD
+          ls drivers | head -3
       - name: finasu
         run: |
           git clone --depth 1 -b ${{ inputs.ksu_ref }} https://github.com/LyraVoid/FinaSU.git /tmp/finasu
