@@ -66,12 +66,24 @@ jobs:
             echo "[+] path_umount backport injected"
           fi
           grep -rn 'nofault\|TWA_RESUME\|security_inode_init_security_anon' drivers/kernelsu 2>/dev/null | head -3 || echo "[+] clean"
+      - name: susfs
+        run: |
+          cd kernel
+          git clone --depth 1 -b kernel-5.4 https://gitlab.com/simonpunk/susfs4ksu.git /tmp/susfs
+          cp /tmp/susfs/kernel_patches/fs/susfs.c fs/susfs.c
+          cp /tmp/susfs/kernel_patches/include/linux/susfs.h include/linux/susfs.h
+          cp /tmp/susfs/kernel_patches/include/linux/susfs_def.h include/linux/susfs_def.h
+          patch -p1 --forward --batch --fuzz=3 < /tmp/susfs/kernel_patches/50_add_susfs_in_kernel-5.4.patch || true
+          python3 "$GITHUB_WORKSPACE/patches/susfs_fixup.py"
+          echo "--- 校验 ---"
+          grep -c susfs fs/Makefile
+          test -f fs/susfs.c && test -f include/linux/susfs.h && echo "[+] susfs 文件就位"
       - name: configure
         run: |
           cd kernel
           make O=out ARCH=arm64 CC=clang-14 LD=ld.lld-14 AR=llvm-ar-14 NM=llvm-nm-14 OBJCOPY=llvm-objcopy-14 OBJDUMP=llvm-objdump-14 STRIP=llvm-strip-14 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 TARGET_PRODUCT=star vendor/lahaina-qgki_defconfig vendor/debugfs.config vendor/xiaomi_QGKI.config
-          for c in KSU KPROBES KALLSYMS_ALL EXT4_FS HEADERS_INSTALL; do ./scripts/config --file out/.config --enable $c; done
-          ./scripts/config --file out/.config --disable KSU_SUSFS
+          for c in KSU KPROBES KALLSYMS_ALL EXT4_FS HEADERS_INSTALL KSU_SUSFS THREAD_INFO_IN_TASK KSU_SUSFS_SUS_PATH KSU_SUSFS_SUS_MOUNT KSU_SUSFS_SUS_KSTAT KSU_SUSFS_SPOOF_UNAME KSU_SUSFS_ENABLE_LOG KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS KSU_SUSFS_OPEN_REDIRECT KSU_SUSFS_SUS_MAP; do ./scripts/config --file out/.config --enable $c; done
+          ./scripts/config --file out/.config --disable KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
           ./scripts/config --file out/.config --disable KSU_HOOK_SUSFS_INLINE
           ./scripts/config --file out/.config --disable WERROR
           make O=out ARCH=arm64 CC=clang-14 LD=ld.lld-14 AR=llvm-ar-14 NM=llvm-nm-14 OBJCOPY=llvm-objcopy-14 OBJDUMP=llvm-objdump-14 STRIP=llvm-strip-14 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 TARGET_PRODUCT=star olddefconfig
