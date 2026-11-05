@@ -95,49 +95,31 @@ rep(P,
     "    if (old)\n",
     'record-orig')
 
-# dispatcher install -> direct mode
-rep(P,
-    "    // Find one ni_syscall slot for the dispatcher\n"
-    "    if (ksu_find_ni_syscall_slots(&ni_slot, 1) < 1) {\n"
-    "        pr_err(\"failed to find ni_syscall slot for dispatcher\\n\");\n"
-    "        return -ENOENT;\n"
-    "    }\n"
-    "\n"
-    "    ksu_dispatcher_nr = ni_slot;\n"
-    "    ksu_syscall_table_hook(ksu_dispatcher_nr, (syscall_fn_t)ksu_syscall_dispatcher, NULL);\n"
-    "    if (READ_ONCE(ksu_syscall_table[ksu_dispatcher_nr]) != (syscall_fn_t)ksu_syscall_dispatcher) {\n"
-    "        ksu_dispatcher_nr = -1;\n"
-    "        return -EIO;\n"
-    "    }\n"
-    "    ksu_diag_disp_ok = 0;\n"
-    "    pr_info(\"dispatcher installed at slot %d\\n\", ksu_dispatcher_nr);\n"
-    "    return 0;\n"
-    "}",
-    "#ifdef KSU_DIRECT_TABLE_HOOK\n"
-    "    (void)ni_slot;\n"
-    "    ksu_dispatcher_nr = -1;\n"
-    "    ksu_diag_disp_ok = -3; /* direct sys_call_table hooks */\n"
-    "    pr_info(\"ksu: direct sys_call_table hook mode\\n\");\n"
-    "    return 0;\n"
-    "#else\n"
-    "    // Find one ni_syscall slot for the dispatcher\n"
-    "    if (ksu_find_ni_syscall_slots(&ni_slot, 1) < 1) {\n"
-    "        pr_err(\"failed to find ni_syscall slot for dispatcher\\n\");\n"
-    "        return -ENOENT;\n"
-    "    }\n"
-    "\n"
-    "    ksu_dispatcher_nr = ni_slot;\n"
-    "    ksu_syscall_table_hook(ksu_dispatcher_nr, (syscall_fn_t)ksu_syscall_dispatcher, NULL);\n"
-    "    if (READ_ONCE(ksu_syscall_table[ksu_dispatcher_nr]) != (syscall_fn_t)ksu_syscall_dispatcher) {\n"
-    "        ksu_dispatcher_nr = -1;\n"
-    "        return -EIO;\n"
-    "    }\n"
-    "    ksu_diag_disp_ok = 0;\n"
-    "    pr_info(\"dispatcher installed at slot %d\\n\", ksu_dispatcher_nr);\n"
-    "    return 0;\n"
-    "#endif\n"
-    "}",
-    'direct-mode')
+# dispatcher install -> direct mode (anchor must work with or without ksu_diag)
+P = 'hook/arm64/syscall_hook.c'
+s = rd(P)
+if '#ifdef KSU_DIRECT_TABLE_HOOK\n    (void)ni_slot;' in s:
+    ok.append('direct-mode(already)')
+else:
+    marker = "    // Find one ni_syscall slot for the dispatcher"
+    endmark = 'pr_info("dispatcher installed at slot %d\\n", ksu_dispatcher_nr);'
+    i = s.find(marker)
+    j = s.find(endmark, i) if i >= 0 else -1
+    if i < 0 or j < 0:
+        warn.append('direct-mode: anchor missing')
+    else:
+        k = s.find('\n}', j)
+        body = s[i:k]
+        newblock = ("#ifdef KSU_DIRECT_TABLE_HOOK\n"
+                    "    (void)ni_slot;\n"
+                    "    ksu_dispatcher_nr = -1;\n"
+                    "    ksu_diag_disp_ok = -3; /* direct sys_call_table hooks */\n"
+                    '    pr_info("ksu: direct sys_call_table hook mode\\n");\n'
+                    "    return 0;\n"
+                    "#else\n" + body + "\n#endif")
+        s = s[:i] + newblock + s[k:]
+        wr(P, s)
+        ok.append('direct-mode')
 
 # ---------------- 2) header ----------------
 P = 'hook/syscall_hook.h'
