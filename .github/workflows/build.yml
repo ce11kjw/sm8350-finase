@@ -13,25 +13,22 @@ jobs:
       - name: deps
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq bc bison build-essential flex libssl-dev libelf-dev zip unzip cpio rsync python3 git curl device-tree-compiler gcc-aarch64-linux-gnu libxml2 libtinfo6 libncurses6
+          sudo apt-get install -y -qq bc bison build-essential flex libssl-dev libelf-dev zip unzip cpio rsync python3 git curl device-tree-compiler gcc-aarch64-linux-gnu
       - name: clang
         run: |
           mkdir -p $HOME/clang
           curl -fL --retry 3 --retry-delay 2 -o /tmp/c.tgz "https://github.com/ZyCromerZ/Clang/releases/download/14.0.6-20261022-release/Clang-14.0.6-20261022.tar.gz"
           tar -xzf /tmp/c.tgz -C $HOME/clang
           if [ ! -x "$HOME/clang/bin/clang" ]; then
-            d=$(find $HOME/clang -maxdepth 4 -type f -name clang | head -1)
-            d=$(dirname $(dirname "$d"))
+            d=$(find $HOME/clang -maxdepth 4 -type f -name clang | head -1); d=$(dirname $(dirname "$d"))
             mv "$d"/* $HOME/clang/ || true
           fi
-          # 修 libxml2 soname（Ubuntu 24.04 改成 .so.2t64）
-          for pair in "libxml2.so.2 libxml2.so.2t64" "libtinfo.so.5 libtinfo.so.6" "libncurses.so.5 libncurses.so.6"; do
-            set -- $pair
-            if [ ! -e "/usr/lib/x86_64-linux-gnu/$1" ] && [ -e "/usr/lib/x86_64-linux-gnu/$2" ]; then
-              sudo ln -sf "/usr/lib/x86_64-linux-gnu/$2" "/usr/lib/x86_64-linux-gnu/$1"
-              echo "linked $1 -> $2"
-            fi
-          done
+          echo "--- 现有 libxml2 ---"
+          ls -l /usr/lib/x86_64-linux-gnu/libxml2.so* 2>/dev/null || echo none
+          L=$(ls /usr/lib/x86_64-linux-gnu/libxml2.so.2* 2>/dev/null | head -1)
+          if [ -n "$L" ] && [ ! -e /usr/lib/x86_64-linux-gnu/libxml2.so.2 ]; then
+            sudo ln -sf "$L" /usr/lib/x86_64-linux-gnu/libxml2.so.2 && echo "linked libxml2.so.2 -> $L"
+          fi
           $HOME/clang/bin/clang --version | head -2
           $HOME/clang/bin/ld.lld --version
           echo "$HOME/clang/bin" >> $GITHUB_PATH
