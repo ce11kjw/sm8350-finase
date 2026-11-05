@@ -30,11 +30,11 @@ jobs:
           echo "$HOME/clang/bin" >> $GITHUB_PATH
       - name: kernel source
         run: |
-          git clone --filter=blob:none --no-checkout https://github.com/LineageOS/android_kernel_xiaomi_sm8350 kernel
-          cd kernel
-          git checkout 8252226d349c
-          git rev-parse --short HEAD
-          ls drivers | head -3
+          curl -fL --retry 3 --retry-delay 3 -o /tmp/k.tar.gz https://codeload.github.com/LineageOS/android_kernel_xiaomi_sm8350/tar.gz/8252226d349c
+          mkdir -p kernel
+          tar -xzf /tmp/k.tar.gz -C kernel --strip-components=1
+          ls kernel | head -5
+          test -d kernel/drivers || (echo 'no drivers dir'; exit 1)
       - name: finasu
         run: |
           git clone --depth 1 -b ${{ inputs.ksu_ref }} https://github.com/LyraVoid/FinaSU.git /tmp/finasu
