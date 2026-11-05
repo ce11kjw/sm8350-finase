@@ -66,6 +66,10 @@ jobs:
             echo "[+] path_umount backport injected"
           fi
           grep -rn 'nofault\|TWA_RESUME\|security_inode_init_security_anon' drivers/kernelsu 2>/dev/null | head -3 || echo "[+] clean"
+      - name: ksu diag
+        run: |
+          cd kernel
+          python3 "$GITHUB_WORKSPACE/patches/ksu_diag.py"
       - name: susfs
         run: |
           cd kernel
