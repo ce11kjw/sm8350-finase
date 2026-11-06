@@ -15,11 +15,20 @@ jobs:
       - name: deps
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq bc bison build-essential flex libssl-dev libelf-dev zip unzip cpio rsync python3 git curl device-tree-compiler clang-14 lld-14 llvm-14
+          sudo apt-get install -y -qq bc bison build-essential flex libssl-dev libelf-dev zip unzip cpio rsync python3 git curl device-tree-compiler clang lld-14 llvm-14
           for t in clang ld.lld llvm-ar llvm-nm llvm-objcopy llvm-objdump llvm-strip llvm-readelf; do
             sudo ln -sf /usr/bin/$t-14 /usr/local/bin/$t 2>/dev/null || true
           done
-          clang-14 --version | head -1; llvm-nm --version | head -1
+          clang --version | head -1; llvm-nm --version | head -1
+      - name: aosp clang r450784e
+        run: |
+          mkdir -p $HOME/clang
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/c.tgz "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main-kernel-build-2022/clang-r450784e.tar.gz"
+          tar -xzf /tmp/c.tgz -C $HOME/clang
+          test -x $HOME/clang/bin/clang || { echo "clang missing"; find $HOME/clang -maxdepth 3 -name clang | head; exit 1; }
+          $HOME/clang/bin/clang --version | head -2
+          $HOME/clang/bin/ld.lld --version | head -1
+          echo "$HOME/clang/bin" >> $GITHUB_PATH
       - name: kernel source
         run: |
           curl -fL --retry 3 --retry-delay 3 -o /tmp/k.tar.gz https://codeload.github.com/LineageOS/android_kernel_xiaomi_sm8350/tar.gz/8252226d349c
@@ -95,7 +104,7 @@ jobs:
       - name: configure
         run: |
           cd kernel
-          make O=out ARCH=arm64 CC=clang-14 LD=ld.lld-14 AR=llvm-ar-14 NM=llvm-nm-14 OBJCOPY=llvm-objcopy-14 OBJDUMP=llvm-objdump-14 STRIP=llvm-strip-14 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 TARGET_PRODUCT=star vendor/lahaina-qgki_defconfig vendor/debugfs.config vendor/xiaomi_QGKI.config
+          make O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 TARGET_PRODUCT=star vendor/lahaina-qgki_defconfig vendor/debugfs.config vendor/xiaomi_QGKI.config
           for c in KSU KPROBES KALLSYMS_ALL EXT4_FS HEADERS_INSTALL KSU_SUSFS THREAD_INFO_IN_TASK KSU_SUSFS_SUS_PATH KSU_SUSFS_SUS_MOUNT KSU_SUSFS_SUS_KSTAT KSU_SUSFS_SPOOF_UNAME KSU_SUSFS_ENABLE_LOG KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS KSU_SUSFS_OPEN_REDIRECT KSU_SUSFS_SUS_MAP KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG NOMOUNT; do ./scripts/config --file out/.config --enable $c; done
                     ./scripts/config --file out/.config --disable KSU_HOOK_SUSFS_INLINE
           ./scripts/config --file out/.config --disable KSU_SUSFS_ENABLE_LOG
@@ -105,15 +114,15 @@ jobs:
           ./scripts/config --file out/.config --set-str LOCALVERSION "-qgki-g8252226d349c"
           ./scripts/config --file out/.config --disable LOCALVERSION_AUTO
           ./scripts/config --file out/.config --disable WERROR
-          make O=out ARCH=arm64 CC=clang-14 LD=ld.lld-14 AR=llvm-ar-14 NM=llvm-nm-14 OBJCOPY=llvm-objcopy-14 OBJDUMP=llvm-objdump-14 STRIP=llvm-strip-14 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 TARGET_PRODUCT=star olddefconfig
+          make O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 TARGET_PRODUCT=star olddefconfig
           grep -E "^CONFIG_(KSU|KPROBES|KALLSYMS_ALL|EXT4_FS|HEADERS_INSTALL)=" out/.config
       - name: ksu quick check
         run: |
           cd kernel
-          make O=out ARCH=arm64 CC=clang-14 LD=ld.lld-14 AR=llvm-ar-14 NM=llvm-nm-14 OBJCOPY=llvm-objcopy-14 OBJDUMP=llvm-objdump-14 STRIP=llvm-strip-14 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 TARGET_PRODUCT=star prepare >/dev/null 2>&1 || true
-          make O=out ARCH=arm64 CC=clang-14 LD=ld.lld-14 AR=llvm-ar-14 NM=llvm-nm-14 OBJCOPY=llvm-objcopy-14 OBJDUMP=llvm-objdump-14 STRIP=llvm-strip-14 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 TARGET_PRODUCT=star security/selinux/ >/tmp/sel.log 2>&1 || true
+          make O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 TARGET_PRODUCT=star prepare >/dev/null 2>&1 || true
+          make O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 TARGET_PRODUCT=star security/selinux/ >/tmp/sel.log 2>&1 || true
           set +e
-          make O=out ARCH=arm64 CC=clang-14 LD=ld.lld-14 AR=llvm-ar-14 NM=llvm-nm-14 OBJCOPY=llvm-objcopy-14 OBJDUMP=llvm-objdump-14 STRIP=llvm-strip-14 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 TARGET_PRODUCT=star drivers/kernelsu/ > /tmp/ksu.log 2>&1
+          make O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 TARGET_PRODUCT=star drivers/kernelsu/ > /tmp/ksu.log 2>&1
           rc=$?
           echo "ksu quick rc=$rc"
           if [ $rc -ne 0 ]; then grep -E 'error:' /tmp/ksu.log | head -20; tail -15 /tmp/ksu.log; fi
@@ -122,7 +131,7 @@ jobs:
         run: |
           cd kernel
           set +e
-          make O=out ARCH=arm64 CC=clang-14 LD=ld.lld-14 AR=llvm-ar-14 NM=llvm-nm-14 OBJCOPY=llvm-objcopy-14 OBJDUMP=llvm-objdump-14 STRIP=llvm-strip-14 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- TARGET_PRODUCT=star fs/nomount/ > /tmp/nm.log 2>&1
+          make O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- TARGET_PRODUCT=star fs/nomount/ > /tmp/nm.log 2>&1
           rc=$?
           echo "nomount quick rc=$rc"
           if [ $rc -ne 0 ]; then grep -E 'error:' /tmp/nm.log | head -20; tail -20 /tmp/nm.log; fi
@@ -131,7 +140,7 @@ jobs:
         run: |
           cd kernel
           set +e
-          make O=out ARCH=arm64 CC=clang-14 LD=ld.lld-14 AR=llvm-ar-14 NM=llvm-nm-14 OBJCOPY=llvm-objcopy-14 OBJDUMP=llvm-objdump-14 STRIP=llvm-strip-14 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 TARGET_PRODUCT=star -j$(nproc) KCFLAGS="-Wno-error" KSU_REQUIRE_PREINIT=1 KSU_EXPECTED_SIZE2=0x02cc KSU_EXPECTED_HASH2=2d89b50aaf1db013c2b6738f973f48b62ea21a3a8d7216bfec3521065d448458 KSU_SECOND_SIGNATURE_RELEASE=1 Image > /tmp/build.log 2>&1
+          make O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 TARGET_PRODUCT=star -j$(nproc) KCFLAGS="-Wno-error" KSU_REQUIRE_PREINIT=1 KSU_EXPECTED_SIZE2=0x02cc KSU_EXPECTED_HASH2=2d89b50aaf1db013c2b6738f973f48b62ea21a3a8d7216bfec3521065d448458 KSU_SECOND_SIGNATURE_RELEASE=1 Image > /tmp/build.log 2>&1
           rc=$?
           echo "make exit=$rc"
           first=$(grep -nE 'Error [0-9]+' /tmp/build.log | head -1 | cut -d: -f1)
