@@ -23,7 +23,7 @@ jobs:
       - name: aosp clang r450784e
         run: |
           mkdir -p $HOME/clang
-          curl -fL --retry 3 --retry-delay 2 -o /tmp/c.tgz "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main-kernel-build-2022/clang-r450784e.tar.gz"
+          curl -fL --retry 3 --retry-delay 2 -o /tmp/c.tgz "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master-kernel-build-2022/clang-r450784e.tar.gz"
           tar -xzf /tmp/c.tgz -C $HOME/clang
           test -x $HOME/clang/bin/clang || { echo "clang missing"; find $HOME/clang -maxdepth 3 -name clang | head; exit 1; }
           $HOME/clang/bin/clang --version | head -2
