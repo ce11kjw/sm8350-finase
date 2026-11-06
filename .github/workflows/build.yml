@@ -101,6 +101,9 @@ jobs:
           ./scripts/config --file out/.config --disable KSU_SUSFS_ENABLE_LOG
           ./scripts/config --file out/.config --disable KSU_DEBUG
           ./scripts/config --file out/.config --disable IKCONFIG_PROC
+          # 与厂商内核保持相同 uname -r（vermagic 逐字节一致，vendor_dlkm 模块才能加载）
+          ./scripts/config --file out/.config --set-str LOCALVERSION "-qgki-g8252226d349c"
+          ./scripts/config --file out/.config --disable LOCALVERSION_AUTO
           ./scripts/config --file out/.config --disable WERROR
           make O=out ARCH=arm64 CC=clang-14 LD=ld.lld-14 AR=llvm-ar-14 NM=llvm-nm-14 OBJCOPY=llvm-objcopy-14 OBJDUMP=llvm-objdump-14 STRIP=llvm-strip-14 LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm64 TARGET_PRODUCT=star olddefconfig
           grep -E "^CONFIG_(KSU|KPROBES|KALLSYMS_ALL|EXT4_FS|HEADERS_INSTALL)=" out/.config
