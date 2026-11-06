@@ -55,7 +55,9 @@ jobs:
       - name: ksu quick check
         run: |
           cd kernel
-          make O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- TARGET_PRODUCT=star prepare >/dev/null 2>&1 || true
+          make O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- TARGET_PRODUCT=star prepare > /tmp/prep.log 2>&1 || true
+          tail -15 /tmp/prep.log
+          ls -l out/include/generated/compile.h out/include/config/auto.conf 2>&1 | head
           set +e
           make O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- TARGET_PRODUCT=star drivers/kernelsu/ > /tmp/ksu.log 2>&1
           rc=$?
