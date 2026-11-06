@@ -1,0 +1,58 @@
+name: build-stock
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - name: deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bc bison build-essential flex libssl-dev libelf-dev zip unzip cpio rsync python3 git curl device-tree-compiler
+      - name: aosp clang
+        run: |
+          mkdir -p $HOME/clang
+          curl -fL --retry 3 -o /tmp/c.tgz "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master-kernel-build-2022/clang-r450784e.tar.gz"
+          tar -xzf /tmp/c.tgz -C $HOME/clang
+          $HOME/clang/bin/clang --version | head -2
+          echo "$HOME/clang/bin" >> $GITHUB_PATH
+      - name: kernel source
+        run: |
+          curl -fL --retry 3 -o /tmp/k.tar.gz https://codeload.github.com/LineageOS/android_kernel_xiaomi_sm8350/tar.gz/8252226d349c
+          mkdir -p kernel && tar -xzf /tmp/k.tar.gz -C kernel --strip-components=1
+      - name: configure
+        run: |
+          cd kernel
+          mkdir -p out
+          cp "$GITHUB_WORKSPACE/patches/stock.config" out/.config
+          ./scripts/config --file out/.config --set-str LOCALVERSION "-qgki-g8252226d349c"
+          ./scripts/config --file out/.config --disable LOCALVERSION_AUTO
+          ./scripts/config --file out/.config --set-str CMDLINE "cgroup_disable=pressure ramoops.mem_address=0xA0000000 ramoops.mem_size=0x100000 ramoops.console_size=0x40000 ramoops.record_size=0x40000"
+          make O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- TARGET_PRODUCT=star olddefconfig
+          grep -E "^CONFIG_(LOCALVERSION|CMDLINE|PSTORE_RAM)=" out/.config
+      - name: build
+        run: |
+          cd kernel
+          set +e
+          make O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip LLVM_IAS=1 CROSS_COMPILE=aarch64-linux-gnu- TARGET_PRODUCT=star -j$(nproc) KCFLAGS="-Wno-error" Image > /tmp/build.log 2>&1
+          rc=$?
+          echo "make exit=$rc"
+          if [ $rc -ne 0 ]; then grep -nE "Error [0-9]+" /tmp/build.log | head -3; tail -40 /tmp/build.log; exit $rc; fi
+          ls -l out/arch/arm64/boot/Image
+      - name: package
+        run: |
+          cd kernel
+          git clone --depth 1 https://github.com/osm0sis/AnyKernel3.git ak3
+          cp out/arch/arm64/boot/Image ak3/Image
+          cd ak3
+          sed -i 's|^kernel.string=.*|kernel.string=stock-5.4.286 baseline|' anykernel.sh
+          sed -i 's|^do.devicecheck=.*|do.devicecheck=0|' anykernel.sh
+          sed -i 's|^block=.*|block=/dev/block/bootdevice/by-name/boot;|' anykernel.sh
+          zip -r9 "$GITHUB_WORKSPACE/stock-baseline.zip" . -x ".git/*" "README.md"
+          ls -lh "$GITHUB_WORKSPACE/stock-baseline.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stock-baseline
+          path: stock-baseline.zip
